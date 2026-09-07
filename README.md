@@ -1,3 +1,4 @@
-# bookmark-audio-daemon
+Personal daemon for downloading audio from bookmarked videos in your browser.
 
-Personal daemon for downloading audio from bookmarked videos.
+This is part of me just playing around with AI
+
