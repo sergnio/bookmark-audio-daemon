@@ -110,11 +110,15 @@ def load_bookmarks(path: Path) -> list[Clip]:
         LOG.warning("bookmarks unavailable or malformed (%s); will retry later", error)
         return []
 
+    roots = document.get("roots") if isinstance(document, dict) else None
+    top_nodes = roots.values() if isinstance(roots, dict) else [document]
+
     clips: dict[str, Clip] = {}
-    for url, title in _walk_music_bookmarks(document):
-        clip = parse_clip(url, title)
-        if clip is not None:
-            clips.setdefault(clip.key, clip)
+    for node in top_nodes:
+        for url, title in _walk_music_bookmarks(node):
+            clip = parse_clip(url, title)
+            if clip is not None:
+                clips.setdefault(clip.key, clip)
     return list(clips.values())
 
 

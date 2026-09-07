@@ -25,4 +25,4 @@ bookmark-audio-daemon = "bookmark_audio_daemon.cli:main"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["src/bookmark_audio_daemon/tests"]

@@ -1,30 +1,58 @@
-from pathlib import Path
 import json
-import time
-from .config import Config
-from .core import load_bookmarks
-from .daemon import main
-from .tests.test_parser import test_parse_clip
+from pathlib import Path
 
-LOG = logging.getLogger(__name__)
+from ..config import Config
+from ..core import scan
 
-def test_full_workflow() -> None:
-    """Test the full bookmark download workflow."""
-    config_path = Path("~/.config/bookmark-audio-daemon/config.toml").expanduser()
-    config = Config.load(config_path)
 
-    # Test clip parsing
-    test_parse_clip()
+def _fake_bookmarks(path: Path) -> None:
+    document = {
+        "roots": {
+            "bookmark_bar": {
+                "type": "folder",
+                "name": "Music",
+                "children": [
+                    {
+                        "type": "url",
+                        "name": "My Loop",
+                        "url": "https://looptube.io/video?videoId=123456&start=10&end=20",
+                    }
+                ],
+            }
+        }
+    }
+    path.write_text(json.dumps(document), encoding="utf-8")
 
-    # Test bookmark loading
-    bookmarks = load_bookmarks(config.bookmarks)
-    assert len(bookmarks) >= 0, "No bookmarks found"
 
-    # Test download command construction
-    for clip in bookmarks:
-        command = yt_dlp_command(config, clip)
-        assert command[0] == config.yt_dlp_path, "yt-dlp path mismatch"
-        assert "--output" in command, "Output path not specified"
-        assert "https://www.youtube.com/watch?v=" in command[-1], "Invalid YouTube URL"
+def test_full_workflow(tmp_path: Path) -> None:
+    bookmarks_path = tmp_path / "Bookmarks"
+    _fake_bookmarks(bookmarks_path)
+    config = Config(
+        bookmarks=bookmarks_path,
+        output_dir=tmp_path / "output",
+        state_dir=tmp_path / "state",
+        poll_seconds=300,
+        weekly_catchup_seconds=604800,
+        yt_dlp_path="yt-dlp",
+    )
 
-    LOG.info("Full workflow test passed")
+    calls = []
+
+    def fake_runner(command, **kwargs):
+        calls.append(command)
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    downloaded, skipped, failed = scan(config, runner=fake_runner)
+    assert (downloaded, skipped, failed) == (1, 0, 0)
+    assert len(calls) == 1
+    assert calls[0][0] == "yt-dlp"
+    assert calls[0][-1] == "https://www.youtube.com/watch?v=123456"
+
+    # Re-scanning is idempotent: the clip is already recorded in state.
+    downloaded, skipped, failed = scan(config, runner=fake_runner)
+    assert (downloaded, skipped, failed) == (0, 1, 0)
+    assert len(calls) == 1
